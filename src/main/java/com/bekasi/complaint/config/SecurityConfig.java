@@ -67,6 +67,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/reports/*/complete").hasRole("OFFICER")
                         // Account management - admin only
                         .requestMatchers(HttpMethod.POST, "/api/admin/accounts").hasRole("ADMIN")
+                        // Profile endpoints - any authenticated user
+                        .requestMatchers("/api/users/me").authenticated()
                         // Anything else requires authentication
                         .anyRequest().authenticated()
                 );
