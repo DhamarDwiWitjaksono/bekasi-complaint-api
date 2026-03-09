@@ -77,49 +77,38 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ReportResponse> getAllReports() {
-        return reportRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(report -> ReportResponse.fromEntity(report, BASE_IMAGE_URL))
+    public List<ReportResponse> getReports(Long requesterId, boolean isPrivileged) {
+        List<Report> reports = isPrivileged
+                ? reportRepository.findAllByOrderByCreatedAtDesc()
+                : reportRepository.findByUserIdOrderByCreatedAtDesc(requesterId);
+
+        return reports.stream()
+                .map(r -> ReportResponse.fromEntity(r, BASE_IMAGE_URL))
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ReportResponse> getPendingReports() {
-        return reportRepository.findByStatusOrderByCreatedAtDesc(ReportStatus.PENDING).stream()
-                .map(report -> ReportResponse.fromEntity(report, BASE_IMAGE_URL))
+    public List<ReportResponse> getReportsByStatus(ReportStatus status, Long requesterId, boolean isPrivileged) {
+        List<Report> reports = isPrivileged
+                ? reportRepository.findByStatusOrderByCreatedAtDesc(status)
+                : reportRepository.findByUserIdAndStatusOrderByCreatedAtDesc(requesterId, status);
+
+        return reports.stream()
+                .map(r -> ReportResponse.fromEntity(r, BASE_IMAGE_URL))
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ReportResponse> getInProcessReports() {
-        return reportRepository.findByStatusOrderByCreatedAtDesc(ReportStatus.IN_PROCESS).stream()
-                .map(report -> ReportResponse.fromEntity(report, BASE_IMAGE_URL))
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ReportResponse> getCompletedReports() {
-        return reportRepository.findByStatusOrderByCreatedAtDesc(ReportStatus.COMPLETED).stream()
-                .map(report -> ReportResponse.fromEntity(report, BASE_IMAGE_URL))
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ReportResponse> getRejectedReports() {
-        return reportRepository.findByStatusOrderByCreatedAtDesc(ReportStatus.REJECTED).stream()
-                .map(report -> ReportResponse.fromEntity(report, BASE_IMAGE_URL))
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ReportResponse getReportById(Long id) {
+    public ReportResponse getReportById(Long id, Long requesterId, boolean isPrivileged) {
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Report not found with id: " + id));
+
+        if (!isPrivileged && !report.getUser().getId().equals(requesterId)) {
+            throw new ResourceNotFoundException("Report not found with id: " + id);
+        }
+
         return ReportResponse.fromEntity(report, BASE_IMAGE_URL);
     }
 

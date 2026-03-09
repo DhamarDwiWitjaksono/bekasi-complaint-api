@@ -3,6 +3,7 @@ package com.bekasi.complaint.controller;
 import com.bekasi.complaint.dto.request.CreateReportRequest;
 import com.bekasi.complaint.dto.response.ApiResponse;
 import com.bekasi.complaint.dto.response.ReportResponse;
+import com.bekasi.complaint.enums.ReportStatus;
 import com.bekasi.complaint.security.UserDetailsImpl;
 import com.bekasi.complaint.service.ReportService;
 import jakarta.validation.Valid;
@@ -24,10 +25,22 @@ public class ReportController {
 
     private final ReportService reportService;
 
+    // -------------------------------------------------------------------------
+    // Helper: cek apakah user punya role ADMIN atau OFFICER
+    // -------------------------------------------------------------------------
+    private boolean isPrivileged(UserDetailsImpl userDetails) {
+        return userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_OFFICER"));
+    }
+
+    // -------------------------------------------------------------------------
+    // CREATE
+    // -------------------------------------------------------------------------
+
     /**
      * POST /api/reports
-     * Create a new complaint report. Requires USER role.
-     * Accepts multipart/form-data with image upload.
+     * Hanya USER yang bisa membuat laporan.
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('USER')")
@@ -41,69 +54,108 @@ public class ReportController {
                 .body(ApiResponse.success("Report created successfully", report));
     }
 
+    // -------------------------------------------------------------------------
+    // READ — semua endpoint GET wajib login
+    // -------------------------------------------------------------------------
+
     /**
      * GET /api/reports
-     * Get all reports (publicly accessible).
+     * - USER      → hanya laporan milik sendiri
+     * - ADMIN/OFFICER → semua laporan semua user
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<ReportResponse>>> getAllReports() {
-        List<ReportResponse> reports = reportService.getAllReports();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> getReports(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        List<ReportResponse> reports = reportService.getReports(
+                userDetails.getId(), isPrivileged(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Reports retrieved successfully", reports));
     }
 
     /**
      * GET /api/reports/{id}
-     * Get a single report by ID.
+     * - USER      → hanya bisa akses laporan milik sendiri (404 jika bukan miliknya)
+     * - ADMIN/OFFICER → bisa akses laporan siapapun
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReportResponse>> getReportById(@PathVariable Long id) {
-        ReportResponse report = reportService.getReportById(id);
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ReportResponse>> getReportById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        ReportResponse report = reportService.getReportById(
+                id, userDetails.getId(), isPrivileged(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Report retrieved successfully", report));
     }
 
     /**
      * GET /api/reports/status/pending
-     * Get all pending reports.
+     * - USER      → laporan PENDING milik sendiri
+     * - ADMIN/OFFICER → semua laporan PENDING
      */
     @GetMapping("/status/pending")
-    public ResponseEntity<ApiResponse<List<ReportResponse>>> getPendingReports() {
-        List<ReportResponse> reports = reportService.getPendingReports();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> getPendingReports(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        List<ReportResponse> reports = reportService.getReportsByStatus(
+                ReportStatus.PENDING, userDetails.getId(), isPrivileged(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Pending reports retrieved successfully", reports));
     }
 
     /**
      * GET /api/reports/status/in-process
-     * Get all in-process reports.
+     * - USER      → laporan IN_PROCESS milik sendiri
+     * - ADMIN/OFFICER → semua laporan IN_PROCESS
      */
     @GetMapping("/status/in-process")
-    public ResponseEntity<ApiResponse<List<ReportResponse>>> getInProcessReports() {
-        List<ReportResponse> reports = reportService.getInProcessReports();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> getInProcessReports(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        List<ReportResponse> reports = reportService.getReportsByStatus(
+                ReportStatus.IN_PROCESS, userDetails.getId(), isPrivileged(userDetails));
         return ResponseEntity.ok(ApiResponse.success("In-process reports retrieved successfully", reports));
     }
 
     /**
      * GET /api/reports/status/completed
-     * Get all completed reports.
+     * - USER      → laporan COMPLETED milik sendiri
+     * - ADMIN/OFFICER → semua laporan COMPLETED
      */
     @GetMapping("/status/completed")
-    public ResponseEntity<ApiResponse<List<ReportResponse>>> getCompletedReports() {
-        List<ReportResponse> reports = reportService.getCompletedReports();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> getCompletedReports(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        List<ReportResponse> reports = reportService.getReportsByStatus(
+                ReportStatus.COMPLETED, userDetails.getId(), isPrivileged(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Completed reports retrieved successfully", reports));
     }
 
     /**
      * GET /api/reports/status/rejected
-     * Get all rejected reports.
+     * - USER      → laporan REJECTED milik sendiri
+     * - ADMIN/OFFICER → semua laporan REJECTED
      */
     @GetMapping("/status/rejected")
-    public ResponseEntity<ApiResponse<List<ReportResponse>>> getRejectedReports() {
-        List<ReportResponse> reports = reportService.getRejectedReports();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> getRejectedReports(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        List<ReportResponse> reports = reportService.getReportsByStatus(
+                ReportStatus.REJECTED, userDetails.getId(), isPrivileged(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Rejected reports retrieved successfully", reports));
     }
 
+    // -------------------------------------------------------------------------
+    // STATUS TRANSITIONS
+    // -------------------------------------------------------------------------
+
     /**
      * PATCH /api/reports/{id}/approve
-     * Approve a report (set to IN_PROCESS). Requires ADMIN role.
+     * ADMIN: ubah status PENDING → IN_PROCESS
      */
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
@@ -114,7 +166,7 @@ public class ReportController {
 
     /**
      * PATCH /api/reports/{id}/reject
-     * Reject a report. Requires ADMIN role.
+     * ADMIN: ubah status PENDING → REJECTED
      */
     @PatchMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
@@ -125,7 +177,7 @@ public class ReportController {
 
     /**
      * PATCH /api/reports/{id}/complete
-     * Mark a report as completed. Requires OFFICER role.
+     * OFFICER: ubah status IN_PROCESS → COMPLETED
      */
     @PatchMapping("/{id}/complete")
     @PreAuthorize("hasRole('OFFICER')")

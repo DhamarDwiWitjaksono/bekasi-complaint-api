@@ -108,20 +108,46 @@ Returns a JWT token to use in the `Authorization: Bearer <token>` header.
 
 ### Reports
 
-| Method | Endpoint                        | Access         | Description                        |
-|--------|---------------------------------|----------------|------------------------------------|
-| POST   | `/api/reports`                  | USER           | Create a new complaint report      |
-| GET    | `/api/reports`                  | Public         | Get all reports                    |
-| GET    | `/api/reports/{id}`             | Public         | Get report by ID                   |
-| GET    | `/api/reports/status/pending`   | Public         | Get all pending reports            |
-| GET    | `/api/reports/status/in-process`| Public         | Get all in-process reports         |
-| GET    | `/api/reports/status/completed` | Public         | Get all completed reports          |
-| GET    | `/api/reports/status/rejected`  | Public         | Get all rejected reports           |
-| PATCH  | `/api/reports/{id}/approve`     | ADMIN          | Approve report → IN_PROCESS        |
-| PATCH  | `/api/reports/{id}/reject`      | ADMIN          | Reject a pending report            |
-| PATCH  | `/api/reports/{id}/complete`    | OFFICER        | Mark in-process report as complete |
+Semua endpoint laporan **wajib login** (Bearer token). Hasil yang dikembalikan berbeda berdasarkan role:
 
-#### Create Report (multipart/form-data)
+| Role | `GET /api/reports` dan filter status |
+|------|--------------------------------------|
+| USER | Hanya laporan milik sendiri |
+| ADMIN | Semua laporan dari semua user |
+| OFFICER | Semua laporan dari semua user |
+
+| Method | Endpoint                        | Akses              | Keterangan                           |
+|--------|---------------------------------|--------------------|--------------------------------------|
+| POST   | `/api/reports`                  | USER               | Buat laporan baru                    |
+| GET    | `/api/reports`                  | Semua (login)      | Lihat laporan (sesuai role)          |
+| GET    | `/api/reports/{id}`             | Semua (login)      | Detail laporan (USER: hanya miliknya)|
+| GET    | `/api/reports/status/pending`   | Semua (login)      | Filter status PENDING                |
+| GET    | `/api/reports/status/in-process`| Semua (login)      | Filter status IN_PROCESS             |
+| GET    | `/api/reports/status/completed` | Semua (login)      | Filter status COMPLETED              |
+| GET    | `/api/reports/status/rejected`  | Semua (login)      | Filter status REJECTED               |
+| PATCH  | `/api/reports/{id}/approve`     | ADMIN              | PENDING → IN_PROCESS                 |
+| PATCH  | `/api/reports/{id}/reject`      | ADMIN              | PENDING → REJECTED                   |
+| PATCH  | `/api/reports/{id}/complete`    | OFFICER            | IN_PROCESS → COMPLETED               |
+
+> **Catatan keamanan:** Jika USER mencoba mengakses laporan milik user lain via `GET /api/reports/{id}`, server mengembalikan `404 Not Found` (bukan 403) untuk menghindari enumerasi data.
+
+### Profile User
+
+| Method | Endpoint        | Akses         | Keterangan                          |
+|--------|-----------------|---------------|-------------------------------------|
+| GET    | `/api/users/me` | Semua (login) | Ambil profil: id, name, email, roles|
+| PUT    | `/api/users/me` | Semua (login) | Update nama dan/atau password       |
+
+```json
+PUT /api/users/me
+Authorization: Bearer <token>
+{
+  "name": "Nama Baru",
+  "currentPassword": "passwordLama",
+  "newPassword": "passwordBaru123"
+}
+```
+Jika hanya ingin update nama, cukup kirim `name` tanpa field password.
 ```
 POST /api/reports
 Authorization: Bearer <token>
